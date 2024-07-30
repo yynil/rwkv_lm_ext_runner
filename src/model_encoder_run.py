@@ -231,7 +231,11 @@ class BiRWKV_CMix_x060(nn.Module):
         kv = self.value(k)
         return torch.sigmoid(self.receptance(xr)) * kv
 
-
+def encode_sentence(model, idx):
+    embs = model.forward(idx)
+    #get the position of emb_id
+    position = torch.eq(idx, model.emb_id).int().argmax(-1)
+    return embs[torch.arange(embs.size(0)), position]
 class BiBlock(nn.Module):
     def __init__(self, args, layer_id):
         super().__init__()
@@ -308,11 +312,7 @@ class RwkvEncoder(nn.Module):
         self.head = None
         if not args.share_emb:
             self.head = nn.Linear(args.n_embd, args.vocab_size, bias=False)
-    def encode_sentence(self, idx):
-        embs = self.forward(idx)
-        #get the position of emb_id
-        position = torch.eq(idx, self.emb_id).int().argmax(-1)
-        return embs[torch.arange(embs.size(0)), position]
+    
     def forward(self, idx):
         B, T = idx.size()
         assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
