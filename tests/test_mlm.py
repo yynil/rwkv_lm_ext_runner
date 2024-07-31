@@ -37,7 +37,7 @@ if __name__ == '__main__':
         with torch.autocast(device_type=device,dtype=torch.float16):
             print('start to forward[CPU]')
             start_time = time.time()
-            logits = model.forward(input_ids)
+            logits,_ = model.forward(input_ids)
             end_time = time.time()
             print(f'forward time is {end_time-start_time}')
             for b in range(len(texts_idx)):

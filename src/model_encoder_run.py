@@ -232,7 +232,7 @@ class BiRWKV_CMix_x060(nn.Module):
         return torch.sigmoid(self.receptance(xr)) * kv
 
 def encode_sentence(model, idx):
-    embs = model.forward(idx)
+    _,embs = model.forward(idx)
     #get the position of emb_id
     position = torch.eq(idx, model.emb_id).int().argmax(-1)
     return embs[torch.arange(embs.size(0)), position]
@@ -313,7 +313,7 @@ class RwkvEncoder(nn.Module):
         if not args.share_emb:
             self.head = nn.Linear(args.n_embd, args.vocab_size, bias=False)
     
-    def forward(self, idx,return_logits:bool = False):
+    def forward(self, idx):
         B, T = idx.size()
         assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
         mask = create_mask(idx,emb_id=self.emb_id,pad_id=self.pad_id)
@@ -331,6 +331,4 @@ class RwkvEncoder(nn.Module):
         else:
             x = torch.matmul(x,self.emb.weight.t())
         #x is used to caclculate the MLM loss
-        if return_logits:
-            return logits,x
-        return x
+        return x,logits
