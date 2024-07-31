@@ -313,7 +313,7 @@ class RwkvEncoder(nn.Module):
         if not args.share_emb:
             self.head = nn.Linear(args.n_embd, args.vocab_size, bias=False)
     
-    def forward(self, idx):
+    def forward(self, idx,return_logits:bool = False):
         B, T = idx.size()
         assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
         mask = create_mask(idx,emb_id=self.emb_id,pad_id=self.pad_id)
@@ -325,10 +325,12 @@ class RwkvEncoder(nn.Module):
             x = block(x,rev_idx,mask)
 
         x = self.ln_out(x)
-
+        logits = x
         if not self.share_emb and self.head is not None:
             x = self.head(x)
         else:
             x = torch.matmul(x,self.emb.weight.t())
         #x is used to caclculate the MLM loss
+        if return_logits:
+            return logits,x
         return x
