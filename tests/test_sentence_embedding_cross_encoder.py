@@ -29,7 +29,7 @@ if __name__ == '__main__':
     model = load_base_model_cross_encoder(args.model_file)
     
     print(model)
-    # model = torch.jit.script(model)
+    model = torch.jit.script(model)
     tokenizer = AutoTokenizer.from_pretrained('THUDM/glm-4-9b-chat', trust_remote_code=True)
     print(tokenizer)
     args.emb_id = 151329
