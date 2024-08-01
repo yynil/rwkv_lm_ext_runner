@@ -1,4 +1,4 @@
-from model_encoder_run import RwkvEncoder
+from model_encoder_run import RwkvSequenceClassifier,RwkvEncoder
 import torch
 from typing import List
 from transformers import AutoTokenizer
@@ -80,6 +80,28 @@ def load_base_model(base_model):
     print(info)
     return model
 
+def load_base_model_cross_encoder(base_model):
+    args = create_empty_args()
+    w = load_embedding_ckpt_and_parse_args(base_model, args)
+    print(args)
+    args.emb_id = 151329
+    args.pad_id = 151334
+    args.mask_id = 151330
+    model = RwkvSequenceClassifier(args,num_labels=1)
+    info = model.load_state_dict(w)
+    print(info)
+    return model
+
+def tokenize_texts_for_cross_encoder(query :str, texts :List[str],tokenizer :AutoTokenizer,emb_id = 151329, pad_id = 151334, sep_id = 151330):
+    query_idx = tokenizer.encode(query,add_special_tokens=False)
+    query_idx.append(sep_id)
+    texts_idx = [tokenizer.encode(text,add_special_tokens=False) for text in texts]
+    for text_idx in texts_idx:text_idx.append(emb_id)
+    max_len = max([len(text_idx) for text_idx in texts_idx])
+    input_ids = []
+    for text_idx in texts_idx:
+        input_ids.append(query_idx + text_idx + [pad_id]*(max_len-len(text_idx)))
+    return input_ids
 
 def tokenize_texts(texts :List[str],tokenizer :AutoTokenizer,emb_id = 151329, pad_id = 151334, mask_id = 151330):
     texts_idx = [tokenizer.encode(text,add_special_tokens=False) for text in texts]

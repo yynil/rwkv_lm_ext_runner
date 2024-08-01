@@ -4,39 +4,32 @@ os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
 src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'src')
 sys.path.append(src_dir)
 from model_encoder_run import encode_sentence
+import torch
+import time
 def test_texts(args, model, device, texts, tokenizer):
-    texts_idx = [tokenizer.encode(text,add_special_tokens=False) for text in texts]
-    for text_idx in texts_idx:text_idx.append(args.emb_id)
-    max_len = max([len(text_idx) for text_idx in texts_idx])
-    texts_idx = [text_idx + [args.pad_id]*(max_len-len(text_idx)) for text_idx in texts_idx]
-    
-   
-    input_ids = torch.tensor(texts_idx,dtype=torch.long,device=device)
-    MAX_CUM_PROB = 0.7
-    import time
-    from sentence_transformers.util import cos_sim as sim_fn
+    input_idx = tokenize_texts_for_cross_encoder(texts[0],texts[1:],tokenizer)
     with torch.no_grad():
         with torch.autocast(device_type=device,dtype=torch.float32):
             print('start to forward[CPU]')
             start_time = time.time()
-            embs = encode_sentence(model,input_ids)
+            scores = model.forward(torch.tensor(input_idx,dtype=torch.long,device=device))
             end_time = time.time()
             print(f'forward time is {end_time-start_time}')
-            print(sim_fn(embs[0],embs[1:]).squeeze(0).tolist())
+            print(scores)
             
 if __name__ == '__main__':
     import argparse
     from transformers import AutoTokenizer
     parser = argparse.ArgumentParser("Test MLM model")
-    parser.add_argument("--model_file",type=str,default='/media/yueyulin/KINGSTON/models/all_chinese_biencoder/trainable_model/epoch_9/RWKV-x060-MLM-ctx4096.pth.pth')
+    parser.add_argument("--model_file",type=str,default='/media/yueyulin/data_4t/models/cross_encoder_chinese/epoch_9/RWKV-x060-MLM-ctx4096.pth.pth')
     parser.add_argument("--device",type=str,default='cpu')
     args = parser.parse_args() 
     device = args.device
-    from utilities import load_base_model,tokenize_texts
-    model = load_base_model(args.model_file)
-    import torch
+    from utilities import load_base_model_cross_encoder,tokenize_texts_for_cross_encoder
+    model = load_base_model_cross_encoder(args.model_file)
+    
     print(model)
-    model = torch.jit.script(model)
+    # model = torch.jit.script(model)
     tokenizer = AutoTokenizer.from_pretrained('THUDM/glm-4-9b-chat', trust_remote_code=True)
     print(tokenizer)
     args.emb_id = 151329

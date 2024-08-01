@@ -18,7 +18,7 @@ if __name__ == '__main__':
     instruction = input('Please input instruction')
     while(True):
         input_text = input('Please input text:')
-        output_text = sg.generate(input_text,instruction,state_name,top_k=0,top_p=0,gen_count=128)
+        output_text = sg.generate(input_text,instruction,state_name,top_k=0,top_p=0,gen_count=256)
         print(f"Output is :{output_text}")
     # unit_instruction = '你是一个单位提取专家。请从input中抽取出数字和单位，请按照JSON字符串的格式回答，无法提取则不输出。'
     # input_text = '大约503万平方米'

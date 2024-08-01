@@ -332,3 +332,71 @@ class RwkvEncoder(nn.Module):
             x = torch.matmul(x,self.emb.weight.t())
         #x is used to caclculate the MLM loss
         return x,logits
+    
+class RwkvSequenceClassifier(nn.Module):
+    def __init__(self,args, num_labels=1):
+        super().__init__()
+        self.args = args
+        if not hasattr(args, 'dim_att') or args.dim_att == 0:
+            args.dim_att = args.n_embd
+        if not hasattr(args, 'dim_ffn') or args.dim_ffn == 0:
+            args.dim_ffn = args.n_embd * 4
+        if not hasattr(args, 'tiny_att_layer') or args.tiny_att_layer == 0:
+            args.tiny_att_layer = -1
+        if not hasattr(args, 'tiny_att_dim') or args.tiny_att_dim == 0:
+            args.tiny_att_dim = -1
+        if not hasattr(args, 'emb_id'):
+            args.emb_id = 1
+        if not hasattr(args, 'bow_loss_weight'):
+            args.bow_loss_weight = 0.1
+        if not hasattr(args, 'mask_id'):
+            args.mask_id = 3
+        if not hasattr(args, 'share_emb'):
+            args.share_emb = True
+        if not hasattr(args, 'pad_id'):
+            args.pad_id = 0
+        assert args.n_embd % 32 == 0
+        assert args.dim_att % 32 == 0
+        assert args.dim_ffn % 32 == 0
+        self.ctx_len = args.ctx_len
+        self.emb = nn.Embedding(args.vocab_size, args.n_embd)
+        # from src.model import RWKV_Tmix_x060,Block
+        # Block.forward = bi_block_forward_batch
+        # RWKV_Tmix_x060.forward = bi_att_forward_batch
+        self.blocks = nn.ModuleList([BiBlock(args, i) for i in range(args.n_layer)])
+        self.ln_out = nn.LayerNorm(args.n_embd)
+        # self.head = nn.Linear(args.n_embd, args.vocab_size, bias=False)
+        self.emb_id = args.emb_id
+        self.pad_id = args.pad_id
+        self.share_emb = args.share_emb
+
+        self.head = None
+        if not args.share_emb:
+            self.head = nn.Linear(args.n_embd, args.vocab_size, bias=False)
+            
+        self.num_labels = num_labels
+        self.score = nn.Linear(args.n_embd, num_labels,bias=False)
+    def forward(self,idx):
+        
+        B, T = idx.size()
+        assert T <= self.ctx_len, "Cannot forward, model ctx_len is exhausted."
+        mask = create_mask(idx,emb_id=self.emb_id,pad_id=self.pad_id)
+        rev_idx = reverse_x_idx(mask,T)
+        x = self.emb(idx)
+        x_emb = x
+
+        for block in self.blocks:
+            x = block(x,rev_idx,mask)
+
+        x = self.ln_out(x)
+        logits = x
+        if not self.share_emb and self.head is not None:
+            x = self.head(x)
+        else:
+            x = torch.matmul(x,self.emb.weight.t())
+        #x is used to caclculate the MLM loss
+        
+        actual_len = torch.eq(idx, self.emb_id).int().argmax(-1)
+        sentence_emb = logits[torch.arange(x.size(0)),actual_len]
+        scores = self.score(sentence_emb)
+        return scores
