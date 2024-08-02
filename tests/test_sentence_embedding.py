@@ -28,7 +28,7 @@ if __name__ == '__main__':
     import argparse
     from transformers import AutoTokenizer
     parser = argparse.ArgumentParser("Test MLM model")
-    parser.add_argument("--model_file",type=str,default='/media/yueyulin/KINGSTON/models/all_chinese_biencoder/trainable_model/epoch_9/RWKV-x060-MLM-ctx4096.pth.pth')
+    parser.add_argument("--model_file",type=str,default='/media/yueyulin/data_4t/models/bi_encoder/bi_encoder_all_chinese/trainable_model/epoch_9/RWKV-x060-MLM-ctx4096.pth.pth')
     parser.add_argument("--device",type=str,default='cpu')
     args = parser.parse_args() 
     device = args.device
