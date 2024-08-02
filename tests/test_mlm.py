@@ -1,19 +1,28 @@
 if __name__ == '__main__':
     import sys
     import os
+    os.environ["RWKV_CUDA_ON"] = '1'
     os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
     src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'src')
     sys.path.append(src_dir)
     import argparse
     from transformers import AutoTokenizer
+    import torch
     parser = argparse.ArgumentParser("Test MLM model")
     parser.add_argument("--model_file",type=str,default='/media/yueyulin/data_4t/models/mlm/final/epoch_0_step_100000/RWKV-x060-MLM-ctx4096.pth.pth')
     parser.add_argument("--device",type=str,default='cpu')
+    parser.add_argument("--dtype",type=str,default='float32',choices=['bfloat16','float16','float32'])
     args = parser.parse_args() 
     device = args.device
+    if args.dtype == "bfloat16":
+        dtype = torch.bfloat16
+    elif args.dtype == "float16":
+        dtype = torch.float16
+    elif args.dtype == "float32":
+        dtype = torch.float32
     from utilities import load_base_model,tokenize_texts
     model = load_base_model(args.model_file)
-    import torch
+    model = model.to(device=device,dtype=dtype)
     print(model)
     model = torch.jit.script(model)
     tokenizer = AutoTokenizer.from_pretrained('THUDM/glm-4-9b-chat', trust_remote_code=True)
@@ -34,8 +43,8 @@ if __name__ == '__main__':
     MAX_CUM_PROB = 0.7
     import time
     with torch.no_grad():
-        with torch.autocast(device_type=device,dtype=torch.float16):
-            print('start to forward[CPU]')
+        with torch.autocast(device_type=device,dtype=dtype):
+            print(f'start to forward[{device}]')
             start_time = time.time()
             logits,_ = model.forward(input_ids)
             end_time = time.time()

@@ -4,6 +4,34 @@ import torch.nn as nn
 from torch.nn import functional as F
 import os
 
+if os.environ["RWKV_CUDA_ON"] == '1':
+    from torch.utils.cpp_extension import load
+    HEAD_SIZE = 64
+    parent_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rwkv6 = load(name="rwkv6", sources=[f"{parent_path}/cuda/rwkv6_op.cpp", f"{parent_path}/cuda/rwkv6.cu"],
+                                verbose=True, extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3" if os.name != "nt" else "", "--extra-device-vectorization", f"-D_N_={HEAD_SIZE}", f"-D_T_={4096}"])
+    print(f'loaded rwkv6 cuda extension from {parent_path}/cuda/rwkv6_op.cpp and {parent_path}/cuda/rwkv6.cu, HEAD_SIZE is {HEAD_SIZE}')
+
+    class RWKV_6(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, r, k, v, w, u, B: int, T: int, C: int, H: int):
+            with torch.no_grad():
+                ew = (-torch.exp(w.float())).contiguous()
+
+                y = torch.empty((B, T, C), device=w.device, dtype=r.dtype, memory_format=torch.contiguous_format)
+                if r.dtype == torch.bfloat16:
+                    rwkv6.forward_bf16(B, T, C, H, r, k, v, ew, u, y)
+                elif r.dtype == torch.float16:
+                    rwkv6.forward_fp16(B, T, C, H, r, k, v, ew, u, y)
+                elif r.dtype == torch.float32:
+                    rwkv6.forward_fp32(B, T, C, H, r, k, v, ew, u, y)
+                return y
+
+    class RWKV6Module(nn.Module):
+        def forward(self, r, k, v, w, u):
+            B, T, C = r.shape
+            H = C // 64
+            return RWKV_6.apply(r, k, v, w, u, B, T, C, H)
 def create_mask(x,emb_id :int =1,pad_id:int =0):
     mask = torch.ones(x.size(0),x.size(1)).to(x.device)
     mask[x == pad_id] = 0
@@ -59,7 +87,11 @@ def run_rwkv6_forward_mt(r,k,v,w,u,HEAD_SIZE :int = 64):
             futures.append(fut)
         for j in range(HEAD_SIZE):
             y[:, t, :, j] = torch.jit._wait(futures[j])
+    y = y.to(dtype=r.dtype)
     return y.view(B, T, C)
+
+def run_rwkv6_forward_cuda(r, k, v, w, u, rwkv6_module :RWKV6Module, HEAD_SIZE: int = 64):
+   return rwkv6_module.forward(r, k, v, w, u)
 
 def run_rwkv6_forward(r,k,v,w,u,HEAD_SIZE :int = 64):
     B, T, C = r.shape
@@ -149,7 +181,7 @@ class BiRWKV_Tmix_x060(nn.Module):
         self.output = nn.Linear(args.dim_att, args.n_embd, bias=False)
         self.gate = nn.Linear(args.n_embd, args.dim_att, bias=False)
         self.ln_x = nn.GroupNorm(self.n_head, args.dim_att, eps=(1e-5)*(args.head_size_divisor**2))
-
+        self.rwkv6 = RWKV6Module()
     def jit_func(self, x):
         B, T, C = x.size()
 
@@ -187,17 +219,25 @@ class BiRWKV_Tmix_x060(nn.Module):
     def forward(self, x,rev_idx,mask):
         B,T,C = x.size()
         H = C // 64
-        r,k,v,g,w = self.jit_func(x)
+        # r,k,v,g,w = self.jit_func(x)
         rev_x = reverse_x(x,rev_idx)
-        rev_r,rev_k,rev_v,rev_g,rev_w = self.jit_func(rev_x)
+        # rev_r,rev_k,rev_v,rev_g,rev_w = self.jit_func(rev_x)
+        full_x = torch.cat([x,rev_x],dim=0)
         u = self.time_faaaa
-        fut_x = torch.jit._fork(run_rwkv6_forward_mt,r,k,v,w,u)
+        full_r,full_k,full_v,full_g,full_w = self.jit_func(full_x)
+        g = full_g[:B]
+        if full_r.device.type == 'cuda':
+            full_x = run_rwkv6_forward_cuda(full_r, full_k, full_v, full_w, u, self.rwkv6)
+        else:
+            full_x = run_rwkv6_forward_mt(full_r,full_k,full_v,full_w,u)
         # x = run_rwkv6_forward_mt(r, k, v, w, u)
         # rev_x = run_rwkv6_forward_mt(rev_r, rev_k, rev_v, rev_w, u)
-        fut_rev_x = torch.jit._fork(run_rwkv6_forward_mt,rev_r,rev_k,rev_v,rev_w,u)
-        x = torch.jit._wait(fut_x)
-        rev_x = torch.jit._wait(fut_rev_x)
-        rev_x = reverse_x(rev_x,rev_idx)
+        x = full_x[:B]
+        rev_x = reverse_x(full_x[B:],rev_idx)
+        # fut_rev_x = torch.jit._fork(run_rwkv6_forward_mt,rev_r,rev_k,rev_v,rev_w,u)
+        # x = torch.jit._wait(fut_x)
+        # rev_x = torch.jit._wait(fut_rev_x)
+        # rev_x = reverse_x(rev_x,rev_idx)
         x = self.jit_func_2((x+rev_x)/2, g)
         return x
 
@@ -400,3 +440,5 @@ class RwkvSequenceClassifier(nn.Module):
         sentence_emb = logits[torch.arange(x.size(0)),actual_len]
         scores = self.score(sentence_emb)
         return scores
+    
+    
