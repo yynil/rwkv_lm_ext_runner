@@ -1,6 +1,7 @@
 import sys
 import os
 os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
+os.environ["RWKV_CUDA_ON"]= '1'
 src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'src')
 sys.path.append(src_dir)
 from model_encoder_run import encode_sentence
@@ -64,7 +65,7 @@ if __name__ == '__main__':
     from transformers import AutoTokenizer
     parser = argparse.ArgumentParser("Test MLM model")
     parser.add_argument("--model_file",type=str,default='/media/yueyulin/data_4t/models/cross_encoder_chinese/epoch_9/RWKV-x060-MLM-ctx4096.pth.pth')
-    parser.add_argument("--device",type=str,default='cpu')
+    parser.add_argument("--device",type=str,default='cuda')
     parser.add_argument("--dtype",type=str,default='float32',choices=['bfloat16','float16','float32'])
     args = parser.parse_args() 
     device = args.device
@@ -93,7 +94,7 @@ if __name__ == '__main__':
     # reranker = FlagReranker('BAAI/bge-reranker-base', device=device)
     reranker = FlagReranker('BAAI/bge-reranker-v2-m3', device=device) 
     ########################################################
-    test_loop = 100
+    test_loop = 2
     rwkv_time = 0
     bgm3_time = 0
     for i in range(test_loop):
