@@ -173,7 +173,7 @@ def fill_mask_internal(input_text,device,dtype):
     import time
     results = []
     with torch.no_grad():
-        with torch.autocast(device_type=device,dtype=dtype):
+        with torch.autocast(device_type='cuda' if device.startswith('cuda') else 'cpu',dtype=dtype):
             logits,x = model.forward(input_ids)
             for b in range(len(texts_idx)):
                 mask_position = mask_positions[b]
@@ -203,7 +203,7 @@ def compute_similarities_internal(texts :List[str],device:str='cpu',dtype = torc
     input_ids = torch.tensor(texts_idx,dtype=torch.long,device=device)
     import time
     with torch.no_grad():
-        with torch.autocast(device_type=device,dtype=dtype):
+        with torch.autocast(device_type='cuda' if device.startswith('cuda') else 'cpu',dtype=dtype):
             start_time = time.time()
             embs = encode_sentence(emb_model,input_ids)
             end_time = time.time()
@@ -214,7 +214,7 @@ def compute_scores_internal(texts: List[str],device:str = 'cpu', dtype = torch.f
     input_idx = tokenize_texts_for_cross_encoder(texts[0],texts[1:],tokenizer)
     with torch.no_grad():
         print(f'start to forward[{device}]')
-        with torch.autocast(device_type=device,dtype=dtype):
+        with torch.autocast(device_type='cuda' if device.startswith('cuda') else 'cpu',dtype=dtype):
             start_time = time.time()
             scores = cross_emb_model.forward(torch.tensor(input_idx,dtype=torch.long,device=device,requires_grad=False)).view(-1)
             end_time = time.time()
