@@ -8,7 +8,6 @@ from model_encoder_run import encode_sentence
 import torch
 import time
 import gc
-import torch.profiler
 def test_texts(args, model, device, texts, tokenizer,dtype):
     input_idx = tokenize_texts_for_cross_encoder(texts[0],texts[1:],tokenizer)
     with torch.no_grad():

@@ -4,11 +4,11 @@ import torch.nn as nn
 from torch.nn import functional as F
 import os
 
-if os.environ["RWKV_CUDA_ON"] == '1':
+if "RWKV_CUDA_ON" in os.environ and os.environ["RWKV_CUDA_ON"] == '1':
     from torch.utils.cpp_extension import load
     HEAD_SIZE = 64
     parent_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    rwkv6 = load(name="rwkv6", sources=[f"{parent_path}/cuda/rwkv6_op.cpp", f"{parent_path}/cuda/rwkv6.cu"],
+    rwkv6_runner = load(name="rwkv6_runner", sources=[f"{parent_path}/cuda/rwkv6_op_runner.cpp", f"{parent_path}/cuda/rwkv6_runner.cu"],
                                 verbose=True, extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3" if os.name != "nt" else "", "--extra-device-vectorization", f"-D_N_={HEAD_SIZE}", f"-D_T_={4096}"])
     print(f'loaded rwkv6 cuda extension from {parent_path}/cuda/rwkv6_op.cpp and {parent_path}/cuda/rwkv6.cu, HEAD_SIZE is {HEAD_SIZE}')
 
@@ -20,11 +20,11 @@ if os.environ["RWKV_CUDA_ON"] == '1':
 
                 y = torch.empty((B, T, C), device=w.device, dtype=r.dtype, memory_format=torch.contiguous_format)
                 if r.dtype == torch.bfloat16:
-                    rwkv6.forward_bf16(B, T, C, H, r, k, v, ew, u, y)
+                    rwkv6_runner.forward_bf16_runner(B, T, C, H, r, k, v, ew, u, y)
                 elif r.dtype == torch.float16:
-                    rwkv6.forward_fp16(B, T, C, H, r, k, v, ew, u, y)
+                    rwkv6_runner.forward_fp16_runner(B, T, C, H, r, k, v, ew, u, y)
                 elif r.dtype == torch.float32:
-                    rwkv6.forward_fp32(B, T, C, H, r, k, v, ew, u, y)
+                    rwkv6_runner.forward_fp32_runner(B, T, C, H, r, k, v, ew, u, y)
                 return y
 
     class RWKV6Module(nn.Module):

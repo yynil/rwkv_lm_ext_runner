@@ -6,7 +6,7 @@ typedef at::Half fp16;
 typedef float fp32;
 
 template <typename F>
-__global__ void kernel_forward(const int B, const int T, const int C, const int H, 
+__global__ void kernel_forward_runner(const int B, const int T, const int C, const int H, 
                                const F *__restrict__ const _r, const F *__restrict__ const _k, const F *__restrict__ const _v, const float *__restrict__ _w, const F *__restrict__ _u,
                                F *__restrict__ const _y)
 {
@@ -63,18 +63,18 @@ __global__ void kernel_forward(const int B, const int T, const int C, const int 
     }
 }
 
-void cuda_forward_bf16(int B, int T, int C, int H, bf16 *r, bf16 *k, bf16 *v, float *w, bf16 *u, bf16 *y)
+void cuda_forward_bf16_runner(int B, int T, int C, int H, bf16 *r, bf16 *k, bf16 *v, float *w, bf16 *u, bf16 *y)
 {
     assert(H*_N_ == C);
-    kernel_forward<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
+    kernel_forward_runner<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
 }
-void cuda_forward_fp16(int B, int T, int C, int H, fp16 *r, fp16 *k, fp16 *v, float *w, fp16 *u, fp16 *y)
+void cuda_forward_fp16_runner(int B, int T, int C, int H, fp16 *r, fp16 *k, fp16 *v, float *w, fp16 *u, fp16 *y)
 {
     assert(H*_N_ == C);
-    kernel_forward<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
+    kernel_forward_runner<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
 }
-void cuda_forward_fp32(int B, int T, int C, int H, fp32 *r, fp32 *k, fp32 *v, float *w, fp32 *u, fp32 *y)
+void cuda_forward_fp32_runner(int B, int T, int C, int H, fp32 *r, fp32 *k, fp32 *v, float *w, fp32 *u, fp32 *y)
 {
     assert(H*_N_ == C);
-    kernel_forward<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
+    kernel_forward_runner<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
 }
