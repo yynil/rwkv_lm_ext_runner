@@ -53,7 +53,7 @@ class StatesGenerator:
         bot_char = '🤖'
         ctx = f'{cat_char}:{instruction}\n{input_text}\n{bot_char}:'
         with torch.no_grad():
-            with torch.autocast(enabled=True,device_type=self.device,dtype=self.dtype):
+            with torch.autocast(enabled=True,device_type='cuda' if self.device.startswith('cuda') else 'cpu',dtype=self.dtype):
                 output = self.pipeline.generate(ctx,gen_count,gen_args,state=states)
         return output
     
